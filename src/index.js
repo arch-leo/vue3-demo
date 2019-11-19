@@ -51,35 +51,67 @@ class Vue {
 		return el
 	}
 	initDataProxy() {
-		const data = this.$data = this.$options.data ? this.$options.data() : {}
+		const data = this.$data = this.$options.data ? this.$options.data() : {} // {a: { b: { c: 1 } } }
+		const methods = this.$options.methods || {}
 
 		// https://stackoverflow.com/questions/37714787/can-i-extend-proxy-with-an-es2015-class
-		return new Proxy(this, {
-			set: (_, key, value) => {
-				if (key in data) { // 优先设置data
-					const pre = data[key]
-					if (pre !== value) {
-						data[key] = value
-						this.dataNotifyChange(key, pre, value)
+		const createDataProxyHandler = path => {
+			return {
+				set: (obj, key, val) => {
+					// console.log('set', key)
+					const fullPath = path ? path + '.' + key : key
+					const pre = obj[key]
+					obj[key] = val
+					this.dataNotifyChange(fullPath, pre, val)
+					return true
+				},
+				get: (obj, key) => {
+					// console.log('get', key)
+					const fullPath = path ? path + '.' + key : key
+					// 依赖收集
+					this.collect(fullPath)
+					if (typeof obj[key] === 'object' && obj[key] !== null) {
+						return new Proxy(obj[key], createDataProxyHandler(fullPath))
+					} else {
+						return obj[key]
 					}
+				},
+				deleteProperty: (obj, key) => {
+					// console.log('del', path, obj, key)
+					if (key in obj) {
+						const fullPath = path ? path + '.' + key : key
+						const pre = obj[key]
+						delete obj[key]
+						this.dataNotifyChange(fullPath, pre)
+					}
+					return true
+				}
+			}
+		}
+		const handler = {
+			set: (_, key, val) => {
+				if (key in data) {
+					return createDataProxyHandler().set(data, key, val)
 				} else {
-					this[key] = value
+					this[key] = val
 				}
 				return true
 			},
 			get: (_, key) => {
-				const methods = this.$options.methods || {}
-				if (key in data) {
-					if (!this.collected) {
-						this.$watch(key, this.update.bind(this)) // 依赖收集
-						this.collected = true
-					}
-					return data[key] // 优先取data
-				}
+				// 优先取data
+				if (key in data) return createDataProxyHandler().get(data, key)
 				if (key in methods) return methods[key].bind(this.proxy)
 				return this[key]
 			}
-		})
+		}
+		return new Proxy(this, handler)
+	}
+	collect(key) {
+		this.collected = this.collected || {}
+		if (!this.collected[key]) {
+			this.$watch(key, this.update.bind(this))
+			this.collected[key] = true
+		}
 	}
 	initWatch() {
 		this.dataNotifyChain = {}
@@ -89,13 +121,11 @@ class Vue {
 	}
 	update() {
 		const parent = this.$el.parentElement
-		if (parent) {
-			parent.removeChild(this.$el)
-		}
 		const vnode = this.$options.render.call(this.proxy, this.createElement)
+		const oldElm = this.$el
 		this.$el = this.patch(null, vnode)
 		if (parent) {
-			parent.appendChild(this.$el)
+			parent.replaceChild(this.$el, oldElm)
 		}
 		console.log('updated')
 	}
