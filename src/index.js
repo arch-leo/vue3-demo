@@ -13,30 +13,41 @@ class Vue {
 		this.dataNotifyChain[key].push(cb);
 	}
 	$mount(root) {
-		const {mounted, render} = this.$options;
-		const vnode = render.call(this.proxy, this.createElement)
-		this.$el = this.creatElm(vnode)
-		if (root) {
-			const parent = root.parentElement
-			parent.removeChild(root)
-			parent.appendChild(this.$el)
-		}
+		this.$el = root
+		// first render
+		this.update()
+
+		const {mounted} = this.$options;
 		mounted && mounted.call(this.proxy)
 		return this
 	}
 	createElement(tag, data, children) {
 		return new VNode(tag, data, children)
 	}
-	creatElm(vnode) {
+	createDom(vnode) {
 		const el = document.createElement(vnode.tag)
 		el.__vue__ = this
-		for (let key in vnode.data) {
-			el.setAttribute(key, vnode.data[key])
+		
+		const data = vnode.data || {}
+
+		// set dom attributes
+		const attrs = data.attrs || {}
+		for (let key in attrs) {
+			el.setAttribute(key, attrs[key])
 		}
-		const events = (vnode.data || {}).on || {}
+
+		// set className
+		const className = data.class
+		if (className) {
+			el.setAttribute('class', className)
+		}
+
+		// set dom event listener
+		const events = data.on || {}
 		for (let key in events) {
 			el.addEventListener(key, events[key])
 		}
+
 		if (!Array.isArray(vnode.children)) {
 			el.textContent = vnode.children + ''
 		} else {
@@ -44,7 +55,7 @@ class Vue {
 				if (typeof child === 'string') {
 					el.textContent = child
 				} else {
-					el.appendChild(this.creatElm(child))
+					el.appendChild(this.createDom(child))
 				}
 			})
 		}
@@ -90,22 +101,30 @@ class Vue {
 		}
 		const handler = {
 			set: (_, key, val) => {
-				if (key in data) {
+				if (key in data) { // first data
 					return createDataProxyHandler().set(data, key, val)
-				} else {
+				} else { // then class property and function
 					this[key] = val
 				}
 				return true
 			},
 			get: (_, key) => {
 				// 优先取data
-				if (key in data) return createDataProxyHandler().get(data, key)
-				if (key in methods) return methods[key].bind(this.proxy)
-				return this[key]
+				if (key in data) { // first data
+					return createDataProxyHandler().get(data, key)
+				} else if (key in methods) { // then methods
+					return methods[key].bind(this.proxy)
+				} else { // then class property and function
+					return this[key]
+				}
 			}
 		}
 		return new Proxy(this, handler)
 	}
+	/**
+	 * collect: collect dependences on first rendering
+	 * @param {string} key ths property path in data. for example, student.name students[0].name
+	 */
 	collect(key) {
 		this.collected = this.collected || {}
 		if (!this.collected[key]) {
@@ -120,7 +139,7 @@ class Vue {
 		(this.dataNotifyChain[key] || []).forEach(cb => cb(pre, val))
 	}
 	update() {
-		const parent = this.$el.parentElement
+		const parent = (this.$el || {}).parentElement
 		const vnode = this.$options.render.call(this.proxy, this.createElement)
 		const oldElm = this.$el
 		this.$el = this.patch(null, vnode)
@@ -130,7 +149,7 @@ class Vue {
 		console.log('updated')
 	}
 	patch(oldVnode, newVnode) {
-		return this.creatElm(newVnode)
+		return this.createDom(newVnode)
 	}
 }
 
