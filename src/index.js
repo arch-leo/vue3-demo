@@ -4,9 +4,15 @@ class Vue {
 	constructor(options) {
 		this.$options = options
 
+		this.initProps()
 		this.proxy = this.initDataProxy()
 		this.initWatch()
 		return this.proxy
+	}
+	$emit(...options) {
+		const [name, ...rest] = options
+		const cb = this._events[name]
+		if (cb) cb(...rest)
 	}
 	$watch(key, cb) {
 		this.dataNotifyChain[key] = this.dataNotifyChain[key] || []
@@ -22,9 +28,20 @@ class Vue {
 		return this
 	}
 	createElement(tag, data, children) {
+		const components = this.$options.components || {}
+		if (tag in components) {
+			return new VNode(tag, data, children, components[tag])
+		}
 		return new VNode(tag, data, children)
 	}
 	createDom(vnode) {
+		if (vnode.componentOptions) {
+			const componentInstance = new Vue(Object.assign({}, vnode.componentOptions, {propsData: vnode.data.props}))
+			vnode.componentInstance = componentInstance
+			componentInstance._events = (vnode.data || {}).on || {}
+			componentInstance.$mount()
+			return componentInstance.$el
+		}
 		const el = document.createElement(vnode.tag)
 		el.__vue__ = this
 		
@@ -62,10 +79,8 @@ class Vue {
 		return el
 	}
 	initDataProxy() {
-		const data = this.$data = this.$options.data ? this.$options.data() : {} // {a: { b: { c: 1 } } }
-		const methods = this.$options.methods || {}
-
 		// https://stackoverflow.com/questions/37714787/can-i-extend-proxy-with-an-es2015-class
+
 		const createDataProxyHandler = path => {
 			return {
 				set: (obj, key, val) => {
@@ -99,9 +114,15 @@ class Vue {
 				}
 			}
 		}
+		const data = this.$data = this.$options.data ? this.$options.data() : {} // {a: { b: { c: 1 } } }
+		const props = this._props;
+		const methods = this.$options.methods || {}
+
 		const handler = {
 			set: (_, key, val) => {
-				if (key in data) { // first data
+				if (key in props) { // first props
+					return createDataProxyHandler().set(props, key, val)
+				} else if (key in data) { // then data
 					return createDataProxyHandler().set(data, key, val)
 				} else { // then class property and function
 					this[key] = val
@@ -110,7 +131,9 @@ class Vue {
 			},
 			get: (_, key) => {
 				// 优先取data
-				if (key in data) { // first data
+				if (key in props) { // first props
+					return createDataProxyHandler().get(props, key)
+				} else if (key in data) { // then data
 					return createDataProxyHandler().get(data, key)
 				} else if (key in methods) { // then methods
 					return methods[key].bind(this.proxy)
@@ -120,6 +143,14 @@ class Vue {
 			}
 		}
 		return new Proxy(this, handler)
+	}
+	initProps() {
+		this._props = {}
+		const {props: propsOptions, propsData} = this.$options;
+		if (!propsOptions || !propsOptions.length) return
+		propsOptions.forEach((key) => {
+			this._props[key] = propsData[key]
+		})
 	}
 	/**
 	 * collect: collect dependences on first rendering
@@ -140,13 +171,13 @@ class Vue {
 	}
 	update() {
 		const parent = (this.$el || {}).parentElement
-		const vnode = this.$options.render.call(this.proxy, this.createElement)
+		const vnode = this.$options.render.call(this.proxy, this.createElement.bind(this))
 		const oldElm = this.$el
 		this.$el = this.patch(null, vnode)
 		if (parent) {
 			parent.replaceChild(this.$el, oldElm)
 		}
-		console.log('updated')
+		// console.log('updated')
 	}
 	patch(oldVnode, newVnode) {
 		return this.createDom(newVnode)
