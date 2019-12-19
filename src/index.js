@@ -1,4 +1,5 @@
 import VNode from "./vnode.js"
+import Watcher from "./watcher.js"
 
 class Vue {
 	constructor(options) {
@@ -6,6 +7,7 @@ class Vue {
 
 		this.initProps()
 		this.proxy = this.initDataProxy()
+		this.initWatcher()
 		this.initWatch()
 		return this.proxy
 	}
@@ -158,16 +160,37 @@ class Vue {
 		})
 	}
 	/**
-	 * collect: collect dependences on first rendering
+	 * collect: collect dependences
 	 * @param {string} key ths property path in data. for example, student.name students[0].name
 	 */
 	collect(key) {
+		// on first rendering
 		if (this._duringFirstRendering) {
 			this.$watch(key, this.update.bind(this))
 		}
+		// _target is seted in Watcher's constructor
+		if (this._target) {
+			this.$watch(key, this._target.update.bind(this._target))
+		}
+	}
+	initWatcher() {
+		this.dataNotifyChain = {}
 	}
 	initWatch() {
-		this.dataNotifyChain = {}
+		const watch = this.$options.watch || {}
+		const computed = this.$options.computed || {}
+		const data = this.$data
+
+		for (let key in watch) {
+			const handler = watch[key]
+			if (key in data) {
+				this.$watch(key, handler.bind(this.proxy))
+			} else if (key in computed) {
+				new Watcher(this.proxy, computed[key], handler)
+			} else {
+				throw 'i don‘t know what you wanna do'
+			}
+		}
 	}
 	dataNotifyChange(key, pre, val) {
 		(this.dataNotifyChain[key] || []).forEach(cb => cb(pre, val))
