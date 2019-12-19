@@ -177,13 +177,16 @@ class Vue {
 		this.dataNotifyChain = {}
 	}
 	initWatch() {
+		// @todo 组件内部 watch 未实现 data props computed
 		const watch = this.$options.watch || {}
 		const computed = this.$options.computed || {}
+		const props = this._props
 		const data = this.$data
-
 		for (let key in watch) {
 			const handler = watch[key]
 			if (key in data) {
+				this.$watch(key, handler.bind(this.proxy))
+			} else if (key in props) {
 				this.$watch(key, handler.bind(this.proxy))
 			} else if (key in computed) {
 				new Watcher(this.proxy, computed[key], handler)

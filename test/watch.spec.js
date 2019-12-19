@@ -42,4 +42,46 @@ describe('Watch', function () {
 		vm.a = 3
 		expect(cb).toHaveBeenCalledWith(4, 3, 4)
 	});
+	it('Component', function () {
+		const cb = jasmine.createSpy('cb')
+		const vm = new Vue({
+			data() {
+				return {
+					msg: 'hello',
+				}
+			},
+			components: {
+				'my-com': {
+					props: ['msg'],
+					watch: {
+						txt(pre, val) {
+							console.error('txt: 123213')
+							cb(pre, val)
+						},
+						msg(pre, val) {
+							console.error('msg: 123213')
+							cb(pre, val)
+						}
+					},
+					data() {
+						return {
+							txt: '哈哈'
+						}
+					},
+					render(h) {
+						return h('p', null, this.msg)
+					}
+				}
+			},
+			render(h) {
+				return h('div', {}, [
+					h('my-com', { props: { msg: this.msg } }),
+				])
+			}
+		}).$mount();
+		vm.txt = '嘻嘻'
+		vm.msg = 'world'
+		expect(cb).toHaveBeenCalledWith('hello', 'world')
+		document.body.appendChild(vm.$el)
+	});
 });
