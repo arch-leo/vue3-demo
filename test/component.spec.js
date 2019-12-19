@@ -19,8 +19,8 @@ describe('Component', function () {
 			},
 			render(h) {
 				return h('div', {}, [
-					h('my-com', {props: {msg: this.msg1}}),
-					h('my-com', {props: {msg: this.msg2}}),
+					h('my-com', { props: { msg: this.msg1 } }),
+					h('my-com', { props: { msg: this.msg2 } }),
 				])
 			}
 		}).$mount()
@@ -43,7 +43,7 @@ describe('Component', function () {
 				}
 			},
 			render(h) {
-				return h('my-com', {props: {msg: this.parentMsg}})
+				return h('my-com', { props: { msg: this.parentMsg } })
 			}
 		}).$mount()
 		// document.body.appendChild(vm.$el)
@@ -65,16 +65,41 @@ describe('Component', function () {
 						return h('p', null, this.msg)
 					},
 					mounted() {
-						this.$emit('mounted', {payload: 'payload'})
+						this.$emit('mounted', { payload: 'payload' })
 					}
 				}
 			},
 			render(h) {
-				return h('my-com', {on: {mounted: cb}})
+				return h('my-com', { on: { mounted: cb } })
 			}
 		}).$mount()
 		// document.body.appendChild(vm.$el)
 		expect(cb).withContext(vm)
-		expect(cb).toHaveBeenCalledWith({payload: 'payload'})
+		expect(cb).toHaveBeenCalledWith({ payload: 'payload' })
 	});
+	// it('Repeat Render', function () {
+	// 	var cb = jasmine.createSpy('cb');
+
+	// 	var vm = new Vue({
+	// 		data() {
+	// 			return {
+	// 				a: 1,
+	// 				b: 2,
+	// 			}
+	// 		},
+	// 		render(h) {
+	// 			cb()
+	// 			return h('p', null, this.a + this.b)
+	// 		}
+	// 	}).$mount()
+
+	// 	expect(cb).toHaveBeenCalledTimes(1)
+
+	// 	vm.a = 10
+	// 	vm.b = 11
+	// 	setTimeout(_ => {
+	// 		expect(cb).toHaveBeenCalledTimes(2) // change 'a' and 'b' only trigger one render
+	// 		// done()
+	// 	})
+	// })
 });

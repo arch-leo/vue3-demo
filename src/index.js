@@ -21,7 +21,9 @@ class Vue {
 	$mount(root) {
 		this.$el = root
 		// first render
+		this._duringFirstRendering = true
 		this.update()
+		this._duringFirstRendering = false
 
 		const {mounted} = this.$options;
 		mounted && mounted.call(this.proxy)
@@ -117,6 +119,7 @@ class Vue {
 		const data = this.$data = this.$options.data ? this.$options.data() : {} // {a: { b: { c: 1 } } }
 		const props = this._props;
 		const methods = this.$options.methods || {}
+		const computed = this.$options.computed || {}
 
 		const handler = {
 			set: (_, key, val) => {
@@ -135,6 +138,8 @@ class Vue {
 					return createDataProxyHandler().get(props, key)
 				} else if (key in data) { // then data
 					return createDataProxyHandler().get(data, key)
+				} else if (key in computed) { // then computed
+					return computed[key].call(this.proxy)
 				} else if (key in methods) { // then methods
 					return methods[key].bind(this.proxy)
 				} else { // then class property and function
@@ -157,10 +162,8 @@ class Vue {
 	 * @param {string} key ths property path in data. for example, student.name students[0].name
 	 */
 	collect(key) {
-		this.collected = this.collected || {}
-		if (!this.collected[key]) {
+		if (this._duringFirstRendering) {
 			this.$watch(key, this.update.bind(this))
-			this.collected[key] = true
 		}
 	}
 	initWatch() {
@@ -169,7 +172,7 @@ class Vue {
 	dataNotifyChange(key, pre, val) {
 		(this.dataNotifyChain[key] || []).forEach(cb => cb(pre, val))
 	}
-	update() {
+	update(firstRender) {
 		const parent = (this.$el || {}).parentElement
 		const vnode = this.$options.render.call(this.proxy, this.createElement.bind(this))
 		const oldElm = this.$el
