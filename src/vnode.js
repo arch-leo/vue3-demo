@@ -10,6 +10,3 @@ export default function VNode(tag, data, children, componentOptions, componentIn
 	this.componentOptions = componentOptions
 	this.componentInstance = componentInstance
 }
-export function createTextVNode(val) {
-	return new VNode(undefined, undefined, val)
-}

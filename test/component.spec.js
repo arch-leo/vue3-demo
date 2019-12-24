@@ -27,7 +27,7 @@ describe('Component', function () {
 		// document.body.appendChild(vm.$el)
 		expect(vm.$el.outerHTML).toEqual('<div><p>hello</p><p>world</p></div>')
 	});
-	it('component mvvm', function () {
+	it('component mvvm', done => {
 		const vm = new Vue({
 			data() {
 				return {
@@ -49,10 +49,13 @@ describe('Component', function () {
 		// document.body.appendChild(vm.$el)
 		expect(vm.$el.outerHTML).toEqual('<p>hello</p>')
 		vm.parentMsg = 'hi'
-		expect(vm.$el.outerHTML).toEqual('<p>hi</p>')
+		setTimeout(() => {
+			expect(vm.$el.outerHTML).toEqual('<p>hi</p>')
+			done()
+		}, 0)
 	});
 	it('event && action', function () {
-		var cb = jasmine.createSpy('cb')
+		const cb = jasmine.createSpy('cb')
 		const vm = new Vue({
 			data() {
 				return {
@@ -78,9 +81,9 @@ describe('Component', function () {
 		expect(cb).toHaveBeenCalledWith({ payload: 'payload' })
 	});
 	// it('Repeat Render', function () {
-	// 	var cb = jasmine.createSpy('cb');
+	// 	const cb = jasmine.createSpy('cb');
 
-	// 	var vm = new Vue({
+	// 	const vm = new Vue({
 	// 		data() {
 	// 			return {
 	// 				a: 1,

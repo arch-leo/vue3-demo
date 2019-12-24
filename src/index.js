@@ -1,15 +1,21 @@
 import VNode from "./vnode.js"
-import Watcher from "./watcher.js"
+import { Watcher, ComputedWatcher } from "./watcher.js"
+import Dep from "./dep.js"
+import { createProxy, setTarget, clearTarget } from "./proxy.js"
+import { nextTick } from "./util.js"
 
 class Vue {
 	constructor(options) {
-		this.$options = options
+		this.$options = options || {}
 
 		this.initProps()
-		this.proxy = this.initDataProxy()
+		this.proxy = createProxy(this)
 		this.initWatcher()
 		this.initWatch()
 		return this.proxy
+	}
+	$nextTick(cb) {
+		nextTick(cb, this.proxy)
 	}
 	$emit(...options) {
 		const [name, ...rest] = options
@@ -17,15 +23,17 @@ class Vue {
 		if (cb) cb(...rest)
 	}
 	$watch(key, cb) {
-		this.dataNotifyChain[key] = this.dataNotifyChain[key] || []
-		this.dataNotifyChain[key].push(cb);
+		if (!this.deps[key]) {
+			this.deps[key] = new Dep()
+		}
+		this.deps[key].addSub(new Watcher(this.proxy, key, cb))
 	}
 	$mount(root) {
 		this.$el = root
-		// first render
-		this._duringFirstRendering = true
+		// collect dependences on first render
+		setTarget(this)
 		this.update()
-		this._duringFirstRendering = false
+		clearTarget()
 
 		const {mounted} = this.$options;
 		mounted && mounted.call(this.proxy)
@@ -82,75 +90,6 @@ class Vue {
 		}
 		return el
 	}
-	initDataProxy() {
-		// https://stackoverflow.com/questions/37714787/can-i-extend-proxy-with-an-es2015-class
-
-		const createDataProxyHandler = path => {
-			return {
-				set: (obj, key, val) => {
-					// console.log('set', key)
-					const fullPath = path ? path + '.' + key : key
-					const pre = obj[key]
-					obj[key] = val
-					this.dataNotifyChange(fullPath, pre, val)
-					return true
-				},
-				get: (obj, key) => {
-					// console.log('get', key)
-					const fullPath = path ? path + '.' + key : key
-					// 依赖收集
-					this.collect(fullPath)
-					if (typeof obj[key] === 'object' && obj[key] !== null) {
-						return new Proxy(obj[key], createDataProxyHandler(fullPath))
-					} else {
-						return obj[key]
-					}
-				},
-				deleteProperty: (obj, key) => {
-					// console.log('del', path, obj, key)
-					if (key in obj) {
-						const fullPath = path ? path + '.' + key : key
-						const pre = obj[key]
-						delete obj[key]
-						this.dataNotifyChange(fullPath, pre)
-					}
-					return true
-				}
-			}
-		}
-		const data = this.$data = this.$options.data ? this.$options.data() : {} // {a: { b: { c: 1 } } }
-		const props = this._props;
-		const methods = this.$options.methods || {}
-		const computed = this.$options.computed || {}
-
-		const handler = {
-			set: (_, key, val) => {
-				if (key in props) { // first props
-					return createDataProxyHandler().set(props, key, val)
-				} else if (key in data) { // then data
-					return createDataProxyHandler().set(data, key, val)
-				} else { // then class property and function
-					this[key] = val
-				}
-				return true
-			},
-			get: (_, key) => {
-				// 优先取data
-				if (key in props) { // first props
-					return createDataProxyHandler().get(props, key)
-				} else if (key in data) { // then data
-					return createDataProxyHandler().get(data, key)
-				} else if (key in computed) { // then computed
-					return computed[key].call(this.proxy)
-				} else if (key in methods) { // then methods
-					return methods[key].bind(this.proxy)
-				} else { // then class property and function
-					return this[key]
-				}
-			}
-		}
-		return new Proxy(this, handler)
-	}
 	initProps() {
 		this._props = {}
 		const {props: propsOptions, propsData} = this.$options;
@@ -159,22 +98,8 @@ class Vue {
 			this._props[key] = propsData[key]
 		})
 	}
-	/**
-	 * collect: collect dependences
-	 * @param {string} key ths property path in data. for example, student.name students[0].name
-	 */
-	collect(key) {
-		// on first rendering
-		if (this._duringFirstRendering) {
-			this.$watch(key, this.update.bind(this))
-		}
-		// _target is seted in Watcher's constructor
-		if (this._target) {
-			this.$watch(key, this._target.update.bind(this._target))
-		}
-	}
 	initWatcher() {
-		this.dataNotifyChain = {}
+		this.deps = {}
 	}
 	initWatch() {
 		// @todo 组件内部 watch 未实现 data props computed
@@ -189,16 +114,17 @@ class Vue {
 			} else if (key in props) {
 				this.$watch(key, handler.bind(this.proxy))
 			} else if (key in computed) {
-				new Watcher(this.proxy, computed[key], handler)
+				new ComputedWatcher(this.proxy, computed[key], handler)
 			} else {
 				throw 'i don‘t know what you wanna do'
 			}
 		}
 	}
-	dataNotifyChange(key, pre, val) {
-		(this.dataNotifyChain[key] || []).forEach(cb => cb(pre, val))
+	notifyChange(key, pre, val) {
+		const dep = this.deps[key]
+		dep && dep.notify({pre, val})
 	}
-	update(firstRender) {
+	update() {
 		const parent = (this.$el || {}).parentElement
 		const vnode = this.$options.render.call(this.proxy, this.createElement.bind(this))
 		const oldElm = this.$el

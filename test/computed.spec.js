@@ -1,7 +1,7 @@
 import Vue from "../src/index.js";
 
 describe('Computed', function () {
-	it('Basic', function () {
+	it('Basic', done => {
 		const vm = new Vue({
 			computed: {
 				b() {
@@ -21,9 +21,12 @@ describe('Computed', function () {
 		expect(vm.$el.textContent).toEqual('2')
 		vm.a = 10
 		expect(vm.b).toEqual(11)
-		expect(vm.$el.textContent).toEqual('11')
+		setTimeout(() => {
+			expect(vm.$el.textContent).toEqual('11')
+			done()
+		}, 0)
 	});
-	it('Chain', function () {
+	it('Chain', done => {
 		const vm = new Vue({
 			computed: {
 				b() {
@@ -46,6 +49,9 @@ describe('Computed', function () {
 		expect(vm.$el.textContent).toEqual('3')
 		vm.a = 10
 		expect(vm.c).toEqual(12)
-		expect(vm.$el.textContent).toEqual('12')
+		setTimeout(() => {
+			expect(vm.$el.textContent).toEqual('12')
+			done()
+		}, 0)
 	});
 });

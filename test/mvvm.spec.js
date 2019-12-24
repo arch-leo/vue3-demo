@@ -1,7 +1,7 @@
 import Vue from "../src/index.js";
 
 describe('Mvvm', function () {
-	it('Basic', function () {
+	it('Basic', done => {
 		const vm = new Vue({
 			data() {
 				return {
@@ -13,11 +13,16 @@ describe('Mvvm', function () {
 			}
 		}).$mount()
 		vm.a++
-		expect(vm.$el.textContent).toBe('1')
-		vm.a = 999
-		expect(vm.$el.textContent).toBe('999')
+		setTimeout(() => {
+			expect(vm.$el.textContent).toBe('1')
+			vm.a = 999
+			setTimeout(() => {
+				expect(vm.$el.textContent).toBe('999')
+				done()
+			}, 0)
+		}, 0)
 	});
-	it('Deep Object', function () {
+	it('Deep Object', done => {
 		const vm = new Vue({
 			data() {
 				return {
@@ -34,11 +39,17 @@ describe('Mvvm', function () {
 		vm.a.b++
 		expect(vm.a.b).toBe(1)
 
-		expect(vm.$el.textContent).toBe('1')
-		vm.a.b = 999
-		expect(vm.$el.textContent).toBe('999')
+		setTimeout(() => {
+			expect(vm.$el.textContent).toBe('1')
+			vm.a.b = 999
+
+			setTimeout(() => {
+				expect(vm.$el.textContent).toBe('999')
+				done()
+			}, 0)
+		}, 0)
 	})
-	it('Add Property', function () {
+	it('Add/Delete Property', done => {
 		const vm = new Vue({
 			data() {
 				return {
@@ -49,28 +60,26 @@ describe('Mvvm', function () {
 				return h('div', null, this.a.b)
 			}
 		}).$mount()
-		vm.a.b = 10
-		expect(vm.a.b).toBe(10)
-		expect(vm.$el.textContent).toBe('10')
+		vm.a.b = 0
+		expect(vm.a.b).toBe(0)
+		setTimeout(() => {
+			expect(vm.$el.textContent).toBe('0')
+			vm.a.b = 10
+			expect(vm.a.b).toBe(10)
+			setTimeout(() => {
+				expect(vm.$el.textContent).toBe('10')
+
+				delete vm.a.b
+				expect(vm.a.b).toBe(undefined)
+
+				setTimeout(() => {
+					expect(vm.$el.textContent).toBe('undefined')
+					done()
+				}, 0)
+			}, 0)
+		}, 0)
 	})
-	it('Delete Property', function () {
-		const vm = new Vue({
-			data() {
-				return {
-					a: {
-						b: 0
-					}
-				}
-			},
-			render(h) {
-				return h('div', null, this.a.b)
-			}
-		}).$mount()
-		delete vm.a.b
-		expect(vm.a.b).toBe(undefined)
-		expect(vm.$el.textContent).toBe('undefined')
-	})
-	it('Array Setter/Getter', function () {
+	it('Array Setter/Getter', done => {
 		const vm = new Vue({
 			data() {
 				return {
@@ -85,9 +94,12 @@ describe('Mvvm', function () {
 		expect(vm.$el.textContent).toBe('hello')
 		vm.a[0] = 'world'
 		expect(vm.a[0]).toBe('world')
-		expect(vm.$el.textContent).toBe('world')
+		setTimeout(() => {
+			expect(vm.$el.textContent).toBe('world')
+			done()
+		}, 0)
 	})
-	it('Array push/splice', function () {
+	it('Array push/splice', done => {
 		const vm = new Vue({
 			data() {
 				return {
@@ -103,13 +115,19 @@ describe('Mvvm', function () {
 
 		vm.a.push('world')
 		expect(vm.a[1]).toBe('world')
-		expect(vm.$el.textContent).toBe('world')
+		setTimeout(() => {
+			expect(vm.$el.textContent).toBe('world')
 		
-		vm.a.splice(2, 0, 'hello world')
-		expect(vm.a[2]).toBe('hello world')
-		expect(vm.$el.textContent).toBe('hello world')
+			vm.a.splice(2, 0, 'hello world')
+			expect(vm.a[2]).toBe('hello world')
+
+			setTimeout(() => {
+				expect(vm.$el.textContent).toBe('hello world')
+				done()
+			}, 0)
+		}, 0)
 	})
-	it('change property of object in array', function () {
+	it('change property of object in array', done => {
 		const vm = new Vue({
 			data() {
 				return {
@@ -125,6 +143,9 @@ describe('Mvvm', function () {
 
 		vm.a[0].msg = 'world'
 		expect(vm.a[0].msg).toBe('world')
-		expect(vm.$el.textContent).toBe('world')
+		setTimeout(() => {
+			expect(vm.$el.textContent).toBe('world')
+			done()
+		}, 0)
 	})
 });
